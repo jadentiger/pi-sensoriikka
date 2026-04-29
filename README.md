@@ -96,6 +96,8 @@ Ominaisuudet:
 - selainkäyttö
 - mahdollisuus etäkäyttöön
 
+<img width="519" height="882" alt="image" src="https://github.com/user-attachments/assets/c807583e-65bc-4b92-b336-eae34aa6084f" />
+
 ---
 
 ## 🧩 Haasteet ja ratkaisut
