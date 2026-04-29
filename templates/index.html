@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RoboSoteLab Dashboard - OSAO</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #e3f2fd;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      color: #333;
+    }
+
+    .container {
+      background-color: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 800px;
+      text-align: center;
+      border: 2px solid #0277bd;
+      margin-top: 20px;
+      padding: 40px;
+      padding-top: 60px;
+    }
+
+    h1 { font-size: 28px; color: #01579b; margin-bottom: 30px; font-weight: bold; text-transform: uppercase; }
+    h2 { font-size: 18px; color: #0288d1; margin-bottom: 15px; font-weight: 400; }
+    p { font-size: 20px; color: #333; margin: 15px 0; padding: 15px; border-radius: 8px; transition: background-color 0.3s ease, color 0.3s ease; }
+    p#temp { background-color: #81d4fa; color: #01579b; }
+    p#humidity { background-color: #4fc3f7; color: #01579b; }
+    p#pressure { background-color: #0288d1; color: white; }
+    footer { margin-top: 30px; font-size: 14px; color: #0277bd; }
+    footer a { color: #01579b; text-decoration: none; }
+    p:hover { background-color: #90caf9; color: #333; }
+    #chartContainer { margin-top: 30px; }
+    .chart { margin-bottom: 30px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>RoboSoteLab</h1>
+    <h2>Mittaukset tulevat Raspberry Pi:stä, joka on liitetty Unitree Go2 -robottikoiraan.</h2>
+
+    <p>Unitree Go2 kulkee automaattisesti tilasta toiseen ja mittaa ympäristön lämpötilan reaaliajassa.</p>
+    
+    <p id="temp">Lämpötila: -- C</p>
+    <p id="humidity">Kosteus: -- %</p>
+    <p id="pressure">Paine: -- hPa</p>
+
+    <div id="chartContainer">
+      <div class="chart"><canvas id="tempChart"></canvas></div>
+      <div class="chart"><canvas id="humidityChart"></canvas></div>
+      <div class="chart"><canvas id="pressureChart"></canvas></div>
+    </div>
+
+    <footer>
+      <p>Tekijä: Jaden Brower | <a href="https://www.osao.fi" target="_blank">OSAO</a> | RoboSoteLab</p>
+    </footer>
+  </div>
+
+  <script>
+    const socket = io();
+
+    let timeLabels = [];
+    let tempData = [];
+    let humidityData = [];
+    let pressureData = [];
+
+    function formatTimestamp(timestamp) {
+      const date = new Date(timestamp);
+      return date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + 
+             String(date.getDate()).padStart(2,'0') + ' ' + 
+             String(date.getHours()).padStart(2,'0') + ':' + 
+             String(date.getMinutes()).padStart(2,'0') + ':' + 
+             String(date.getSeconds()).padStart(2,'0');
+    }
+
+    const tempCtx = document.getElementById('tempChart').getContext('2d');
+    const tempChart = new Chart(tempCtx, {
+      type: 'line',
+      data: { labels: timeLabels, datasets: [{ label:'Lämpötila (°C)', borderColor:'#0288d1', backgroundColor:'rgba(2,136,209,0.2)', fill:true, data: tempData }] },
+      options: { responsive:true, scales:{ x:{ type:'category', ticks:{ autoSkip:true, maxTicksLimit:10 } }, y:{ beginAtZero:false } }, plugins:{ legend:{ position:'top' } } }
+    });
+
+    const humidityCtx = document.getElementById('humidityChart').getContext('2d');
+    const humidityChart = new Chart(humidityCtx, {
+      type: 'line',
+      data: { labels: timeLabels, datasets: [{ label:'Kosteus (%)', borderColor:'#4fc3f7', backgroundColor:'rgba(79,195,247,0.2)', fill:true, data: humidityData }] },
+      options: { responsive:true, scales:{ x:{ type:'category', ticks:{ autoSkip:true, maxTicksLimit:10 } }, y:{ beginAtZero:true, suggestedMin:0 } }, plugins:{ legend:{ position:'top' } } }
+    });
+
+    const pressureCtx = document.getElementById('pressureChart').getContext('2d');
+    const pressureChart = new Chart(pressureCtx, {
+      type: 'line',
+      data: { labels: timeLabels, datasets: [{ label:'Paine (hPa)', borderColor:'#01579b', backgroundColor:'rgba(1,87,155,0.2)', fill:true, data: pressureData }] },
+      options: { responsive:true, scales:{ x:{ type:'category', ticks:{ autoSkip:true, maxTicksLimit:10 } }, y:{ beginAtZero:false, suggestedMin:980, suggestedMax:1050, stepSize:1 } }, plugins:{ legend:{ position:'top' } } }
+    });
+
+    socket.on('sensorUpdate', function(data) {
+      const currentTime = Date.now();
+      const formattedTime = formatTimestamp(currentTime);
+
+      // Update text
+      document.getElementById('temp').textContent = 'Lämpötila: ' + (data.temperature ?? '--') + ' C';
+      document.getElementById('humidity').textContent = 'Kosteus: ' + (data.humidity ?? '--') + ' %';
+      document.getElementById('pressure').textContent = 'Paine: ' + (data.pressure ?? '--') + ' hPa';
+
+      // Add chart data
+      timeLabels.push(formattedTime);
+      tempData.push(data.temperature ?? null);
+      humidityData.push(data.humidity ?? null);
+      pressureData.push(data.pressure ?? null);
+
+      tempChart.update();
+      humidityChart.update();
+      pressureChart.update();
+
+      // Alert handling
+      let alerts = [];
+      if (data.temperature < 15 || data.temperature > 30) alerts.push('temperature');
+      if (data.humidity < 10) alerts.push('humidity');
+      if (data.pressure < 990 || data.pressure > 1030) alerts.push('pressure');
+
+      if (alerts.length > 0) {
+        document.body.style.backgroundColor = "#ffcccc";
+        document.getElementById('temp').style.backgroundColor = alerts.includes('temperature') ? "#ff6666" : "#81d4fa";
+        document.getElementById('humidity').style.backgroundColor = alerts.includes('humidity') ? "#ff6666" : "#4fc3f7";
+        document.getElementById('pressure').style.backgroundColor = alerts.includes('pressure') ? "#ff6666" : "#0288d1";
+      } else {
+        document.body.style.backgroundColor = "#e3f2fd";
+        document.getElementById('temp').style.backgroundColor = "#81d4fa";
+        document.getElementById('humidity').style.backgroundColor = "#4fc3f7";
+        document.getElementById('pressure').style.backgroundColor = "#0288d1";
+      }
+    });
+  </script>
+</body>
+</html>
